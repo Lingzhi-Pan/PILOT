@@ -1,7 +1,7 @@
 # PILOT: Coherent and Multi-modality Image Inpainting via Latent Space Optimization
 Official Implement of PILOT.
 
-[Lingzhi Pan](https://github.com/Lingzhi-Pan), [Tong Zhang](https://people.epfl.ch/tong.zhang?lang=en), [Bingyuan CHEN](https://github.com/Alex-Lord), [Qi Zhou](https://github.com/zaqai), [Wei Ke](https://gr.xjtu.edu.cn/en/web/wei.ke), [Sabine Susstrunk](https://people.epfl.ch/sabine.susstrunk), [Mathieu Salzmann](https://people.epfl.ch/mathieu.salzmann)
+[Lingzhi Pan](https://github.com/Lingzhi-Pan), [Tong Zhang](https://people.epfl.ch/tong.zhang?lang=en), [Bingyuan Chen](https://github.com/Alex-Lord), [Qi Zhou](https://github.com/zaqai), [Wei Ke](https://gr.xjtu.edu.cn/en/web/wei.ke), [Sabine Susstrunk](https://people.epfl.ch/sabine.susstrunk), [Mathieu Salzmann](https://people.epfl.ch/mathieu.salzmann)
 
 **Code will be coming soon!**
 
