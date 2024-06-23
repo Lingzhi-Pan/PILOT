@@ -17,7 +17,7 @@ Abstract: With the advancements in denoising diffusion probabilistic models (DDP
 ![image](https://github.com/Lingzhi-Pan/PILOT/blob/main/assets/framework_b.png)
 
 
-
+<!--
 ## Results Using Diverse Prompts 
 
 <div style="text-align: center;"><strong>Text prompts</strong></div>
@@ -42,7 +42,7 @@ Abstract: With the advancements in denoising diffusion probabilistic models (DDP
 ![image](https://github.com/Lingzhi-Pan/PILOT/blob/main/assets/personalize.png)
 ![image](https://github.com/Lingzhi-Pan/PILOT/blob/main/assets/monai.png)
 
-
+-->
 
 
 
