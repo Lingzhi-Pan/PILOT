@@ -1,4 +1,4 @@
-## <div align="center"> <i>PILOT</i>: Coherent and Multi-modality Image Inpainting via Latent Space Optimization </div>
+# <div align="center"> <i>PILOT</i>: Coherent and Multi-modality Image Inpainting via Latent Space Optimization </div>
 
 <div align="center">
 
