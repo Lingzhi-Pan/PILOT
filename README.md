@@ -3,7 +3,7 @@
 <div align="center">
 
   <a href="https://pilot-page.github.io"><img src="https://img.shields.io/static/v1?label=Project%20Page&message=GitHub&color=blue&logo=github"></a> &ensp;
-  <a href="https://arxiv.org/abs/2407.08019"><img src="https://img.shields.io/static/v1?label=ArXiv&message=2406.07209&color=B31B1B&logo=arxiv"></a> &ensp;
+  <a href="https://arxiv.org/abs/2407.08019"><img src="https://img.shields.io/static/v1?label=ArXiv&message=2407.08019&color=B31B1B&logo=arxiv"></a> &ensp;
 
 </div>
 
