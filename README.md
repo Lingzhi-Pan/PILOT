@@ -63,9 +63,11 @@ Abstract: With the advancements in denoising diffusion probabilistic models (DDP
 
 ## BibTeX
 
+```bibtex
 @article{pan2024coherent,
   title={Coherent and Multi-modality Image Inpainting via Latent Space Optimization},
   author={Pan, Lingzhi and Zhang, Tong and Chen, Bingyuan and Zhou, Qi and Ke, Wei and S{\"u}sstrunk, Sabine and Salzmann, Mathieu},
   journal={arXiv preprint arXiv:2407.08019},
   year={2024}
 }
+```
