@@ -62,7 +62,7 @@ Abstract: With the advancements in denoising diffusion probabilistic models (DDP
 
 
 ## BibTeX
-
+If you find this work helpful, please consider citing:
 ```bibtex
 @article{pan2024coherent,
   title={Coherent and Multi-modality Image Inpainting via Latent Space Optimization},
