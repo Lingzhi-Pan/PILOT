@@ -63,11 +63,9 @@ Abstract: With the advancements in denoising diffusion probabilistic models (DDP
 
 ## BibTeX
 
-<!-- ```
-@article{lin2023text,
-  title={Text-Driven Image Editing via Learnable Regions},
-  author={Lin, Yuanze and Chen, Yi-Wen and Tsai, Yi-Hsuan and Jiang, Lu and Yang, Ming-Hsuan},
-  journal={arXiv preprint arXiv:2311.16432},
-  year={2023}
+@article{pan2024coherent,
+  title={Coherent and Multi-modality Image Inpainting via Latent Space Optimization},
+  author={Pan, Lingzhi and Zhang, Tong and Chen, Bingyuan and Zhou, Qi and Ke, Wei and S{\"u}sstrunk, Sabine and Salzmann, Mathieu},
+  journal={arXiv preprint arXiv:2407.08019},
+  year={2024}
 }
-``` -->
