@@ -77,7 +77,7 @@ python run_example.py --config_file configs/ipa_controlnet_step30.yaml
 ![image](https://github.com/Lingzhi-Pan/PILOT/blob/main/assets/ip_adapter_b.png)
 
 
-### personalized Image Inpainting
+### Personalized Image Inpainting
 You can also integrate LORA into the base model or replace the base model with other personalized Text-to-Image (T2I) models to achieve personalized image inpainting. For example, replacing the base model with a T2I model fine-tuned by DreamBooth using several photos of a cute dog can generate the dog inside the masked region while preserving the dog's identity effectively.
 ![image](https://github.com/Lingzhi-Pan/PILOT/blob/main/assets/subject.png)
 
