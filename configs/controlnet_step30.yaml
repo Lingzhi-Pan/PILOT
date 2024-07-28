@@ -10,8 +10,12 @@ mask_image: "data/truck-mask.png"
 cond_image: "data/motor.png"
 prompt: "black motorbike"
 
-seed: 65
+cfg: 7.5
+W: 512
+H: 512
+num: 1
 
+seed: 65
 step: 30
 op_interval: 3
 num_gradient_ops: 3
@@ -20,15 +24,10 @@ lr_warmup: 0.01
 lr: 0.05
 lr_f: "exp"
 coef: 40
-momentum: 0.7
-
 coef_f: "linear"
-
+momentum: 0.7
 fp16: true
 
-cfg: 7.5
-W: 512
-H: 512
-num: 1
+
 
 
