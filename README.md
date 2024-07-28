@@ -55,7 +55,7 @@ python run_example.py --config_file configs/t2i_step50.yaml
 ![image](https://github.com/Lingzhi-Pan/PILOT/blob/main/assets/text_add.png)
 
 ### Text + Spatial Controls
-First, download the ControlNet checkpoint, such as ControlNet conditioned on Scribble images, published by Lvmin Zhang from the following link: https://huggingface.co/lllyasviel/sd-controlnet-scribble. Then, execute the instructions below:
+To introduce spatial controls using ControlNet or T2I-Adapter, we offer options for both models, but we recommend using ControlNet. First, download the ControlNet checkpoint, such as ControlNet conditioned on Scribble images, published by Lvmin Zhang from the following link: https://huggingface.co/lllyasviel/sd-controlnet-scribble. Then, execute the instructions below:
 ```
 python run_example.py --config_file configs/controlnet_step30.yaml
 ```
