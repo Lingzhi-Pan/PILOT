@@ -77,7 +77,7 @@ You can also integrate LORA into the base model or replace the base model with o
 ![image](https://github.com/Lingzhi-Pan/PILOT/blob/main/assets/subject.png)
 
 
-**See our [GitHub pages](https://pilot-page.github.io) for more information!**
+**See our [Paper](https://arxiv.org/abs/2407.08019) for more information!**
 ## BibTeX
 If you find this work helpful, please consider citing:
 ```bibtex
