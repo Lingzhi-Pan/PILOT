@@ -65,7 +65,7 @@ You can also download other ControlNet models published by Lvmin Zhang to enable
 ### Text + Reference Image
 Download the checkpoint of IP-Adapter from the website "https://huggingface.co/h94/IP-Adapter", and then run the following instruction:
 ```
-python run_example.py --config_file configs/ipa_step30.yaml
+python run_example.py --config_file configs/ipa_step50.yaml
 ```
 ![image](https://github.com/Lingzhi-Pan/PILOT/blob/main/assets/ip_adapter_a.png)
 
