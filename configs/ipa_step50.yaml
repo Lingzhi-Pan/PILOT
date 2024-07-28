@@ -7,7 +7,7 @@ ip_scale: 0.6
 
 input_image: "data/monet-sample.png"
 mask_image: "data/monet-mask.png"
-ip_image: "data/starry-sample.png"
+ip_image: "data/starry.png"
 prompt: "sky"
 
 cfg: 7.5
