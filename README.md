@@ -44,10 +44,10 @@ pip install -r requirements.txt
 ```
 You can download the `stable-diffusion-v1-5` model from the website "https://huggingface.co/runwayml/stable-diffusion-v1-5" and save it to your local path.
 
-## Run
+## Run Examples
 We provide three types of conditions to guide the inpainting process: text, spatial controls, and reference images. Each condition-control refers to a different configuration in the directory `configs/`.
 
-### Text
+### Text-guided
 Modify the `model_path` parameter in the config file to point to the directory where you saved your SD model, and then execute the following instruction:
 ```
 python run_example.py --config_file configs/t2i_step50.yaml
