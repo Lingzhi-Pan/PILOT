@@ -1308,20 +1308,13 @@ class PilotPipeline(DiffusionPipeline,
                     one_image = one_image.to(device=device, dtype=self.adapter.dtype)
                     t2iadapter_input.append(one_image)
                 t2iadapter_input=t2iadapter_input.to(self.adapter.dtype).to("cuda")
-                t2iadapter_input = t2iadapter_input[:,0:1,:,:]
         if isinstance(self.adapter, T2IAdapter):
             if cond_image!=None:
                 one_image = _preprocess_adapter_image(cond_image, height, width)
-                # print(one_image.shape)
-                # one_image.save('/home/panlingzhi/plot_0520/PILOT/tile.png')
                 one_image = one_image.to(device=device, dtype=self.adapter.dtype)
                 t2iadapter_input=one_image
                 t2iadapter_input=t2iadapter_input.to(self.adapter.dtype).to("cuda")
-                t2iadapter_input = t2iadapter_input[:,0:1,:,:]
                 
-        # if sd_version == 't2iadapter_canny' or sd_version == 't2iadapter_sketch':
-        #     t2iadapter_input = t2iadapter_input[:,0:1,:,:]
-        
         adapter_state = None
         if t2iadapter_input!=[] and self.adapter:
             if isinstance(self.adapter, MultiAdapter):
