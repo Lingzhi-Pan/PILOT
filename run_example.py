@@ -93,19 +93,19 @@ print("load base model")
 if config.fp16:
     pipe = PilotPipeline.from_pretrained(
         f"{config.model_path}/{config.model_id}",
-        controlnet=controlnet,
-        adapter=adapter,
-        torch_dtype=torch.float16,
-        variant="fp16",
-        requires_safety_checker=False,
+        controlnet = controlnet,
+        adapter = adapter,
+        torch_dtype = torch.float16,
+        variant = "fp16",
+        requires_safety_checker = False,
     ).to(device)
 else:
     pipe = PilotPipeline.from_pretrained(
         f"{config.model_path}/{config.model_id}",
-        controlnet=controlnet,
-        adapter=adapter,
-        torch_dtype=torch.float16,
-        requires_safety_checker=False,
+        controlnet = controlnet,
+        adapter = adapter,
+        torch_dtype = torch.float16,
+        requires_safety_checker = False,
     ).to(device)
     
 if "t2iadapter" in model_list:
@@ -128,12 +128,12 @@ if "lora_id" in config:
         lora_scale = config.lora_scale[i]
         pipe.load_lora_weights(
             f"{config.model_path}/{lora_id}",
-            weight_name="model.safetensors",
-            torch_dtype=torch.float16,
-            adapter_name=lora_id,
+            weight_name = "model.safetensors",
+            torch_dtype = torch.float16,
+            adapter_name = lora_id,
         )
         print(f"lora id: {lora_id}*{lora_scale}")
-    pipe.set_adapters(config.lora_id, adapter_weights=config.lora_scale)
+    pipe.set_adapters(config.lora_id, adapter_weights = config.lora_scale)
 
 # load ip adapter
 ip_image = None
@@ -142,8 +142,8 @@ if "ipa_id" in config:
     model_list.append("ipa")
     pipe.load_ip_adapter(
         f"{config.model_path}/ip_adapter",
-        subfolder="v1-5",
-        weight_name="ip-adapter_sd15_light.bin",
+        subfolder = "v1-5",
+        weight_name = "ip-adapter_sd15_light.bin",
     )
     revise_pilot_unet_attention_forward(pipe.unet)
 
@@ -159,38 +159,38 @@ generator = torch.Generator(device="cuda").manual_seed(config.seed)
 pipe.to("cuda", weight_format)
 #################################### run examples and save results ##########################
 image_list = pipe(
-    prompt=prompt_list,
-    num_inference_steps=config.step,
-    height=config.H,
-    width=config.W,
-    guidance_scale=config.cfg,
+    prompt = prompt_list,
+    num_inference_steps = config.step,
+    height = config.H,
+    width = config.W,
+    guidance_scale = config.cfg,
     num_images_per_prompt = config.num,
-    image=image,
-    mask=mask_image,
-    generator=generator,
-    lr_f=config.lr_f,
-    momentum=config.momentum,
-    lr=config.lr,
-    lr_warmup=config.lr_warmup,
-    coef=config.coef,
-    coef_f=config.coef_f,
-    op_interval=config.op_interval,
-    cond_image=cond_image,
-    num_gradient_ops=config.num_gradient_ops,
-    gamma=config.gamma,
-    return_dict=True,
-    ip_adapter_image=ip_image,
-    model_list=model_list
+    image = image,
+    mask = mask_image,
+    generator = generator,
+    lr_f = config.lr_f,
+    momentum = config.momentum,
+    lr = config.lr,
+    lr_warmup = config.lr_warmup,
+    coef = config.coef,
+    coef_f = config.coef_f,
+    op_interval = config.op_interval,
+    cond_image = cond_image,
+    num_gradient_ops = config.num_gradient_ops,
+    gamma = config.gamma,
+    return_dict = True,
+    ip_adapter_image = ip_image,
+    model_list = model_list
 )
 
 if "ipa" in model_list and "controlnet" in model_list:
-    new_image_list = ipa_spatial_visualize(image=image, mask_image=mask_image, ip_image=ip_image, cond_image=cond_image, result_list=image_list)
+    new_image_list = ipa_spatial_visualize(image = image, mask_image = mask_image, ip_image = ip_image, cond_image = cond_image, result_list = image_list)
 elif "controlnet" in model_list or "t2iadapter" in model_list:
-    new_image_list = spatial_visualize(image=image, mask_image=mask_image, cond_image=cond_image, result_list=image_list)
+    new_image_list = spatial_visualize(image = image, mask_image = mask_image, cond_image = cond_image, result_list = image_list)
 elif "ipa" in model_list:
-    new_image_list = ipa_visualize(image=image, mask_image=mask_image, ip_image=ip_image, result_list=image_list)
+    new_image_list = ipa_visualize(image = image, mask_image = mask_image, ip_image = ip_image, result_list = image_list)
 else:
-    new_image_list = t2i_visualize(image=image, mask_image=mask_image, result_list=image_list)
+    new_image_list = t2i_visualize(image = image, mask_image = mask_image, result_list = image_list)
 
 
 file_path = (
