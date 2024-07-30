@@ -1060,10 +1060,10 @@ class PilotPipeline(DiffusionPipeline,
                 down_block_res_samples, mid_block_res_sample = self.controlnet(
                     x_input,
                     t,
-                    encoder_hidden_states=prompt_embeds,
-                    controlnet_cond=cond_image,
-                    conditioning_scale=self.controlnet_scale,
-                    return_dict=False,
+                    encoder_hidden_states = prompt_embeds,
+                    controlnet_cond = cond_image,
+                    conditioning_scale = self.controlnet_scale,
+                    return_dict = False,
                 )
             down_intrablock_additional_residuals = None # Added for T2I adapter
             if "t2iadapter" in model_list:
@@ -1073,12 +1073,12 @@ class PilotPipeline(DiffusionPipeline,
                 if (t>=600):
                     noise_pred = self.unet(x_input,
                                         t, 
-                                        encoder_hidden_states=prompt_embeds, 
-                                        down_block_additional_residuals=down_block_res_samples,
-                                        mid_block_additional_residual=mid_block_res_sample,
-                                        down_intrablock_additional_residuals=down_intrablock_additional_residuals, # Added for T2I adapter
-                                        added_cond_kwargs=added_cond_kwargs,
-                                        cross_attention_kwargs={
+                                        encoder_hidden_states = prompt_embeds, 
+                                        down_block_additional_residuals = down_block_res_samples,
+                                        mid_block_additional_residual = mid_block_res_sample,
+                                        down_intrablock_additional_residuals = down_intrablock_additional_residuals, # Added for T2I adapter
+                                        added_cond_kwargs = added_cond_kwargs,
+                                        cross_attention_kwargs = {
                                             'attn_mask': attention_mask,
                                             'mask_ca': True,
                                             'mask_sa': True,
@@ -1087,12 +1087,12 @@ class PilotPipeline(DiffusionPipeline,
                 else:
                     noise_pred = self.unet(x_input,
                                         t, 
-                                        encoder_hidden_states=prompt_embeds, 
-                                        down_block_additional_residuals=down_block_res_samples,
-                                        mid_block_additional_residual=mid_block_res_sample,
-                                        down_intrablock_additional_residuals=down_intrablock_additional_residuals, # Added for T2I adapter
-                                        added_cond_kwargs=added_cond_kwargs,
-                                        cross_attention_kwargs={
+                                        encoder_hidden_states = prompt_embeds, 
+                                        down_block_additional_residuals = down_block_res_samples,
+                                        mid_block_additional_residual = mid_block_res_sample,
+                                        down_intrablock_additional_residuals = down_intrablock_additional_residuals, # Added for T2I adapter
+                                        added_cond_kwargs = added_cond_kwargs,
+                                        cross_attention_kwargs = {
                                             'attn_mask': attention_mask,
                                             'mask_ca': True,
                                             'mask_sa': False,
@@ -1101,12 +1101,12 @@ class PilotPipeline(DiffusionPipeline,
             else:
                 noise_pred = self.unet(x_input,
                                     t, 
-                                    encoder_hidden_states=prompt_embeds, 
-                                    down_block_additional_residuals=down_block_res_samples,
-                                    mid_block_additional_residual=mid_block_res_sample,
-                                    down_intrablock_additional_residuals=down_intrablock_additional_residuals, # Added for T2I adapter
-                                    added_cond_kwargs=added_cond_kwargs,
-                                    cross_attention_kwargs={
+                                    encoder_hidden_states = prompt_embeds, 
+                                    down_block_additional_residuals = down_block_res_samples,
+                                    mid_block_additional_residual = mid_block_res_sample,
+                                    down_intrablock_additional_residuals = down_intrablock_additional_residuals, # Added for T2I adapter
+                                    added_cond_kwargs = added_cond_kwargs,
+                                    cross_attention_kwargs = {
                                         'attn_mask': None,
                                         'mask_ca': False,
                                         'mask_sa': False,
