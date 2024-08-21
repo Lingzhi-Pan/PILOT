@@ -8,6 +8,5 @@ tqdm
 transformers==4.37.2
 opencv-python
 omegaconf
-kornia
 controlnet-aux==0.0.7
 accelerate==0.26.1
