@@ -6,7 +6,7 @@
   <a href="https://arxiv.org/abs/2407.08019"><img src="https://img.shields.io/static/v1?label=ArXiv&message=2407.08019&color=B31B1B&logo=arxiv"></a> &ensp;
   
   <br><img src="https://github.com/Lingzhi-Pan/PILOT/blob/main/assets/xjtu.png" height=50> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-  <img src="https://github.com/Lingzhi-Pan/PILOT/blob/main/assets/epfl.png" height=50>
+  <img src="https://github.com/Lingzhi-Pan/PILOT/blob/main/assets/epfl.png" height=40>
  
 </div>
 
