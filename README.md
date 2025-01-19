@@ -1,5 +1,6 @@
 # <div align="center"> <i>PILOT</i>: Coherent and Multi-modality Image Inpainting via Latent Space Optimization </div>
 
+<!--
 <div align="center">
 
   <a href="https://pilot-page.github.io"><img src="https://img.shields.io/static/v1?label=Project%20Page&message=GitHub&color=blue&logo=github"></a> &ensp;
@@ -9,6 +10,7 @@
   <img src="https://github.com/Lingzhi-Pan/PILOT/blob/main/assets/epfl.png" height=50>
  
 </div>
+-->
 
 ---
 
