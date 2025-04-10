@@ -1,0 +1,27 @@
+model_path: "/home/data/panlingzhi/models"
+output_path: "outputs"
+model_id: "stable-diffusion-v1-5"
+# model_id: "real_dream"
+
+input_image: "data/vase-sample.png"
+mask_image: "data/vase-mask.png"
+prompt: "vase"
+negative_prompt: ""
+
+cfg: 7.5
+W: 512
+H: 512
+num: 1
+
+seed: 98
+step: 200
+op_interval: 20
+num_gradient_ops: 20
+gamma: 1
+lr_warmup: 0.007
+lr: 0.025
+lr_f: "exp"
+coef: 150
+coef_f: "linear"
+momentum: 0.7
+fp16: true

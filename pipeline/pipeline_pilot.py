@@ -13,7 +13,7 @@ from diffusers.configuration_utils import FrozenDict
 from diffusers.models import AutoencoderKL, UNet2DConditionModel, UNet2DModel, ControlNetModel, ImageProjection, MultiAdapter, T2IAdapter
 from diffusers.models.controlnet import ControlNetOutput
 from diffusers.models.modeling_utils import ModelMixin
-from diffusers.schedulers import KarrasDiffusionSchedulers
+from diffusers.schedulers import KarrasDiffusionSchedulers, DDIMScheduler
 from diffusers.utils import (
     USE_PEFT_BACKEND,
     deprecate,
@@ -37,11 +37,14 @@ import os
 
 from torch import optim
 import torch.nn.functional as F
+import kornia
+import math
 
 from diffusers.image_processor import PipelineImageInput, VaeImageProcessor
 from diffusers.loaders import FromSingleFileMixin, IPAdapterMixin, LoraLoaderMixin, TextualInversionLoaderMixin
 from diffusers.models.lora import adjust_lora_scale_text_encoder
 from models.attn_processor import revise_pilot_unet_attention_forward
+import matplotlib.pyplot as plt
 
 logger = logging.get_logger(__name__)  # pylint: disable=invalid-name
 
@@ -583,7 +586,7 @@ class PilotPipeline(DiffusionPipeline,
             if isinstance(self, LoraLoaderMixin) and USE_PEFT_BACKEND:
                 # Retrieve the original scale by scaling back the LoRA layers
                 unscale_lora_layers(self.text_encoder, lora_scale)
-        return prompt_embeds
+        return prompt_embeds, text_inputs.input_ids
 
     def prepare_image(
         self, image, width, height, batch_size, num_images_per_prompt, device, dtype, do_classifier_free_guidance
@@ -961,9 +964,11 @@ class PilotPipeline(DiffusionPipeline,
                     lr=0.2,
                     no_op=False,
                     coef=0.05,
-                    coef_f="constant",
+                    coef_f="linear",
                     attention_mask = None,
                     prompt_embeds = None,
+                    prompt = None,
+                    negative_prompt = None,
                     cond_image = None,
                     lr_warmup = 0.01,
                     num_gradient_ops =10,
@@ -971,7 +976,9 @@ class PilotPipeline(DiffusionPipeline,
                     adapter_state = None,
                     x_m=torch.tensor([0]),
                     added_cond_kwargs=None,
-                    model_list = []
+                    model_list = [],
+                    text_input_ids = [],
+                    attn_loss_bank = []
                     ):
         x_m=x_m.to('cuda')
         do_classifier_free_guidance = cfg >= 1.0
@@ -980,68 +987,51 @@ class PilotPipeline(DiffusionPipeline,
                 lr_xt = self.lr_scheduler(lr_f = lr_f,lr=lr)
                 lr_xt[self.scheduler.timesteps[0]] = lr_warmup
                 coef = self.coef_scheduler(coef_f=coef_f, coef_start=coef)
+                # coef = self.coef_scheduler(coef_f="constant", coef_start=coef)             
                 x = x.requires_grad_()
-                
                 if num_gradient_ops!=0:
                     for step in range(num_gradient_ops):
-                        x_input = torch.cat([x] * 2) if do_classifier_free_guidance else x
+                        attn_loss_bank = []
+                        # text guided inpainting
                         down_block_res_samples=None
                         mid_block_res_sample=None
                         if "controlnet" in model_list:
                             down_block_res_samples, mid_block_res_sample = self.controlnet(
-                                x_input,
+                                x,
                                 t,
-                                encoder_hidden_states=prompt_embeds,
-                                controlnet_cond=cond_image,
+                                encoder_hidden_states=prompt_embeds[len(prompt_embeds)//2: ],
+                                controlnet_cond=cond_image[len(prompt_embeds)//2: ],
                                 conditioning_scale=self.controlnet_scale,
                                 return_dict=False,
                             )
                         if "t2iadapter" in model_list:
                             down_intrablock_additional_residuals=[state.clone() for state in adapter_state]
-                        if do_classifier_free_guidance:
-                            noise_pred=self.unet(x_input,
-                                                t, 
-                                                encoder_hidden_states=prompt_embeds, 
-                                                down_block_additional_residuals=down_block_res_samples,
-                                                mid_block_additional_residual=mid_block_res_sample,
-                                                down_intrablock_additional_residuals=down_intrablock_additional_residuals, # Added for T2I adapter
-                                                added_cond_kwargs=added_cond_kwargs,
-                                                cross_attention_kwargs={
-                                                    'attn_mask': attention_mask,
-                                                    'mask_ca': True,
-                                                    'mask_sa': False,
-                                                },
-                                                ).sample
-                        else:
-                            noise_pred=self.unet(x_input,
-                                                t, 
-                                                encoder_hidden_states=prompt_embeds, 
-                                                down_block_additional_residuals=down_block_res_samples,
-                                                mid_block_additional_residual=mid_block_res_sample,
-                                                down_intrablock_additional_residuals=down_intrablock_additional_residuals, # Added for T2I adapter
-                                                added_cond_kwargs=added_cond_kwargs,
-                                                cross_attention_kwargs={
-                                                    'attn_mask': None,
-                                                    'mask_ca': False,
-                                                    'mask_sa': False
-                                                },
-                                                ).sample
-                        if do_classifier_free_guidance:
-                            noise_pred_uncond, noise_pred = noise_pred.chunk(2)
-                            pred_z0 = self.scheduler.step(noise_pred_uncond, t, x).pred_original_sample
-                            pred_z0_cond = self.scheduler.step(noise_pred, t, x).pred_original_sample
-                        else:
-                            pred_z0 = self.scheduler.step(noise_pred, t, x).pred_original_sample
+                        # optimize
+                        noise_pred=self.unet(x,
+                                            t, 
+                                            encoder_hidden_states=prompt_embeds[len(prompt_embeds)//2: ], 
+                                            down_block_additional_residuals=down_block_res_samples,
+                                            mid_block_additional_residual=mid_block_res_sample,
+                                            down_intrablock_additional_residuals=down_intrablock_additional_residuals, # Added for T2I adapter
+                                            added_cond_kwargs=added_cond_kwargs,
+                                            cross_attention_kwargs={
+                                                'attn_mask': attention_mask,
+                                                'mask_ca': True,
+                                                'attn_loss_bank': attn_loss_bank,
+                                                'text_input_ids': text_input_ids,
+                                            },
+                                            ).sample
+                            
+                        pred_z0 = self.scheduler.step(noise_pred, t, x).pred_original_sample
 
                         bg_loss = self.cal_bg_loss(pred_z0, image, mask)
-                        if do_classifier_free_guidance:
-                            if (self.cal_bg_loss(pred_z0, pred_z0_cond, torch.full_like(mask, 1)) != 0):
-                                semantic_loss=self.cal_bg_loss(pred_z0, pred_z0_cond, mask) / self.cal_bg_loss(pred_z0, pred_z0_cond, torch.full_like(mask, 1))
-                            else:
-                                semantic_loss=0
+                        
+                        if attention_mask is not None:
+                            attn_loss = sum(attn_loss_bank[2:13]) / 11
                         else:
-                            semantic_loss=0
-                        loss = bg_loss + coef[t] * semantic_loss
+                            attn_loss = 0
+                            
+                        loss = bg_loss + coef[t] * attn_loss
                         print(f"loss: {loss.item()}")
 
                         loss_grad = torch.autograd.grad(
@@ -1069,34 +1059,20 @@ class PilotPipeline(DiffusionPipeline,
                 # Added for T2I adapter
                 down_intrablock_additional_residuals=[state.clone() for state in adapter_state]
             if do_classifier_free_guidance:
-                if (t>=600):
-                    noise_pred=self.unet(x_input,
-                                        t, 
-                                        encoder_hidden_states=prompt_embeds, 
-                                        down_block_additional_residuals=down_block_res_samples,
-                                        mid_block_additional_residual=mid_block_res_sample,
-                                        down_intrablock_additional_residuals=down_intrablock_additional_residuals, # Added for T2I adapter
-                                        added_cond_kwargs=added_cond_kwargs,
-                                        cross_attention_kwargs={
-                                            'attn_mask': attention_mask,
-                                            'mask_ca': True,
-                                            'mask_sa': True,
-                                        },
-                                        ).sample
-                else:
-                    noise_pred=self.unet(x_input,
-                                        t, 
-                                        encoder_hidden_states=prompt_embeds, 
-                                        down_block_additional_residuals=down_block_res_samples,
-                                        mid_block_additional_residual=mid_block_res_sample,
-                                        down_intrablock_additional_residuals=down_intrablock_additional_residuals, # Added for T2I adapter
-                                        added_cond_kwargs=added_cond_kwargs,
-                                        cross_attention_kwargs={
-                                            'attn_mask': attention_mask,
-                                            'mask_ca': True,
-                                            'mask_sa': False,
-                                        },
-                                        ).sample                        
+                noise_pred=self.unet(x_input,
+                                    t, 
+                                    encoder_hidden_states=prompt_embeds, 
+                                    down_block_additional_residuals=down_block_res_samples,
+                                    mid_block_additional_residual=mid_block_res_sample,
+                                    down_intrablock_additional_residuals=down_intrablock_additional_residuals, # Added for T2I adapter
+                                    added_cond_kwargs=added_cond_kwargs,
+                                    cross_attention_kwargs={
+                                        'attn_mask': attention_mask,
+                                        'mask_ca': True,
+                                        'attn_loss_bank': [0],
+                                        'text_input_ids': text_input_ids,
+                                    },
+                                    ).sample
             else:
                 noise_pred=self.unet(x_input,
                                     t, 
@@ -1108,13 +1084,15 @@ class PilotPipeline(DiffusionPipeline,
                                     cross_attention_kwargs={
                                         'attn_mask': None,
                                         'mask_ca': False,
-                                        'mask_sa': False,
                                     },
-                                    ).sample            
+                                    ).sample          
             # perform guidance
             if do_classifier_free_guidance:
                 noise_pred_uncond, noise_pred_cond = noise_pred.chunk(2)
                 noise_pred = noise_pred_uncond + cfg * (noise_pred_cond - noise_pred_uncond)
+                # remove
+                # noise_pred = noise_pred_cond + cfg * (noise_pred_uncond - noise_pred_cond)
+
                
         return x, noise_pred
 
@@ -1123,6 +1101,7 @@ class PilotPipeline(DiffusionPipeline,
     def __call__(
         self,
         prompt: Union[str, List[str]] = None,
+        neg_prompt: Union[str, List[str]] = None,
         height: Optional[int] = 512,
         width: Optional[int] = 512,
         num_inference_steps: int = 50,
@@ -1154,6 +1133,8 @@ class PilotPipeline(DiffusionPipeline,
         ip_adapter_image: Optional[PipelineImageInput] = None,
         ip_adapter_image_embeds: Optional[List[torch.FloatTensor]] = None,
         model_list: List[str] = ["base"],
+        preview_step = 10,
+        inter_save: bool=False,
         **kwargs,
     ):
         r"""
@@ -1215,9 +1196,6 @@ class PilotPipeline(DiffusionPipeline,
             output_type (`str`, *optional*, defaults to `"pil"`):
                 The output format of the generate image. Choose between
                 [PIL](https://pillow.readthedocs.io/en/stable/): `PIL.Image.Image` or `np.array`.
-            return_dict (`bool`, *optional*, defaults to `True`):
-                Whether or not to return a [`~pipelines.stable_diffusion.StableDiffusionPipelineOutput`] instead of a
-                plain tuple.
             callback (`Callable`, *optional*):
                 A function that will be called every `callback_steps` steps during inference. The function will be
                 called with the following arguments: `callback(step: int, timestep: int, latents: torch.FloatTensor)`.
@@ -1256,6 +1234,8 @@ class PilotPipeline(DiffusionPipeline,
         
         Returns (`PIL.Image` or `torch.FloatTensor`)  
         """
+
+        intermedias = []
 
         # 0. Default height and width to unet
         height = height or self.unet.config.sample_size * self.vae_scale_factor
@@ -1347,7 +1327,7 @@ class PilotPipeline(DiffusionPipeline,
         )
         
         # 4. Encode input prompt, image embeds for IP-Adapter
-        prompt_embeds = self._encode_prompt(
+        prompt_embeds, text_input_ids = self._encode_prompt(
             prompt,
             device,
             num_images_per_prompt,
@@ -1373,6 +1353,10 @@ class PilotPipeline(DiffusionPipeline,
         self.scheduler.eta = eta
         timesteps = self.scheduler.timesteps.to(self.device)
         
+        # prepare preview scheduler
+        scheduler = DDIMScheduler.from_config(self.scheduler.config)
+        scheduler.set_timesteps(preview_step, device=self._execution_device)
+
         # 7. Prepare latent variables
         num_channels_latents = self.vae.config.latent_channels
         latents = self.prepare_latents(
@@ -1390,11 +1374,8 @@ class PilotPipeline(DiffusionPipeline,
         extra_step_kwargs = self.prepare_extra_step_kwargs(generator, eta)
 
         # 9. Adjust coef based on the area of the unmask portion.
-        count_white = torch.sum(torch.eq(mask, 1)).item()
-        if count_white==0:
-            coef_scale=80
-        else:
-            coef_scale = std**2 / count_white**2
+        count_white = torch.sum(torch.eq(mask[0,:,:,:], 1)).item()
+        coef_scale = count_white / std
         coef = coef_scale * coef
 
         generator = generator[0] if isinstance(generator, list) else generator
@@ -1404,14 +1385,20 @@ class PilotPipeline(DiffusionPipeline,
         for attn_size in [64,32,16,8]:  # create attention masks for multi-scale layers in unet
             attention_mask[str(attn_size**2)]= (F.interpolate(1-mask, (attn_size,attn_size), mode='bilinear'))[0,0,...].to(self.device)
             attention_mask[str(attn_size**2)][attention_mask[str(attn_size**2)] < 1] = 0
-            if torch.all(attention_mask[str(attn_size**2)]==0):
-                attention_mask[str(attn_size**2)] = torch.ones_like(attention_mask[str(attn_size**2)])
-        cross_attention_kwargs = {}
-        cross_attention_kwargs["attn_mask"] = attention_mask
+            # if torch.all(attention_mask[str(attn_size**2)]==0):
+            #     # attention_mask[str(attn_size**2)] = torch.ones_like(attention_mask[str(attn_size**2)])
+            #     attention_mask = None
+            #     break
         # no need for inpainting
         if torch.all(mask == 0):
             attention_mask=None
             num_gradient_ops=0
+        if torch.all(mask == 1):
+            attention_mask=None
+            
+        # print("attention_mask: ",attention_mask)
+        cross_attention_kwargs = {}
+        cross_attention_kwargs["attn_mask"] = attention_mask
 
         # 11. Denoising loop
         with self.progress_bar(total=num_inference_steps) as progress_bar:
@@ -1430,13 +1417,13 @@ class PilotPipeline(DiffusionPipeline,
                                         momentum=momentum, lr=lr,
                                         no_op=no_op, coef = coef, coef_f=coef_f, 
                                         attention_mask=attention_mask, prompt_embeds=prompt_embeds,
+                                        prompt=prompt, negative_prompt=negative_prompt,
                                         cond_image=cond_image, lr_warmup=lr_warmup, 
                                         num_gradient_ops=num_gradient_ops, adapter_state=adapter_state,
-                                        model_list=model_list,
+                                        model_list=model_list, text_input_ids=text_input_ids,
                                         added_cond_kwargs=added_cond_kwargs)
-                
-                result = self.scheduler.step(noise_pred, t, latents, **extra_step_kwargs)
-                latents = result.prev_sample    
+
+                latents = self.scheduler.step(noise_pred, t, latents, **extra_step_kwargs).prev_sample
                 progress_bar.update()
                 if callback is not None and i % callback_steps == 0:
                     callback(i, t, latents)

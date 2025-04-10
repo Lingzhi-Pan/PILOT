@@ -49,6 +49,7 @@ from functools import wraps
 import logging
 
 import types
+import math
 
 class PILOT_CrossAttnProcessor:
     r"""
@@ -68,10 +69,12 @@ class PILOT_CrossAttnProcessor:
         temb = None,
         attn_mask = None,
         mask_ca = False,
-        mask_sa = False,
+        attn_loss_bank = [],
+        text_input_ids = [],
         *args,
         **cross_attention_kwargs,
     ) -> torch.FloatTensor:
+        # print("shape of hidden_states: ",hidden_states.shape)
         if len(args) > 0 or cross_attention_kwargs.get("scale", None) is not None:
             deprecation_message = "The `scale` argument is deprecated and will be ignored. Please remove it, as passing it will raise an error in the future. `scale` should directly be passed while calling the underlying pipeline component i.e., via `cross_attention_kwargs`."
             deprecate("scale", "1.0.0", deprecation_message)
@@ -90,33 +93,24 @@ class PILOT_CrossAttnProcessor:
             hidden_states.shape if encoder_hidden_states is None else encoder_hidden_states.shape
         )
 
+        embedding_shape = encoder_hidden_states.shape[-2]
+        latent_shape = hidden_states.shape[-2]
+        
         if (mask_ca) and (attn_mask is not None):
-            attention_mask=rearrange(attn_mask[str(hidden_states.shape[-2])],"h w -> () () (h w) ()").to(dtype=torch.bool)
-            # if isinstance(encoder_hidden_states, tuple):
-            #     embedding_shape = encoder_hidden_states[0].shape[-2]
-            #     latent_shape = hidden_states.shape[-2]*2
-            #     attention_mask=attention_mask.repeat(1,1,2,1)
-            # else:
-            embedding_shape = encoder_hidden_states.shape[-2]
-            latent_shape = hidden_states.shape[-2]
-            attention_mask = torch.cat([torch.ones((1, 1, latent_shape, 1), dtype=torch.bool).to('cuda'),  # 0th token: <bos>, leave it as-is
+            attention_mask=rearrange(attn_mask[str(hidden_states.shape[-2])],"h w -> () () (h w) ()")
+            attention_mask = torch.cat([torch.ones((1, 1, latent_shape, 1)).to('cuda'),  # 0th token: <bos>, leave it as-is
                                 attention_mask.repeat(1,1,1,embedding_shape-1)], dim=-1) # tokens only attend to fg area
+            attention_mask = attention_mask.squeeze(dim=0)
+            attention_mask = attention_mask.repeat(1,1,1)
         else:
-            attention_mask = None
+            attention_mask = torch.ones((1, latent_shape, embedding_shape)).to('cuda')
+        attention_mask = attention_mask.to(hidden_states.dtype)
 
-
-        # if attention_mask is not None:
-        #     attention_mask = attn.prepare_attention_mask(attention_mask, sequence_length, batch_size)
-        #     # scaled_dot_product_attention expects attention_mask shape to be
-        #     # (batch, heads, source_length, target_length)
-        #     attention_mask = attention_mask.view(batch_size, attn.heads, -1, attention_mask.shape[-1])
-        # if attention_mask!=None:
-        #     if (torch.any(attention_mask)==False):
-        #         attention_mask=torch.ones((1, 1, query.shape[-2],  key.shape[-2]), dtype=torch.bool).to('cuda')
 
         if attn.group_norm is not None:
             hidden_states = attn.group_norm(hidden_states.transpose(1, 2)).transpose(1, 2)
 
+        ############################### source attention processor ######################
         query = attn.to_q(hidden_states)
 
         if encoder_hidden_states is None:
@@ -127,39 +121,30 @@ class PILOT_CrossAttnProcessor:
         key = attn.to_k(encoder_hidden_states)
         value = attn.to_v(encoder_hidden_states)
 
-        inner_dim = key.shape[-1]
-        head_dim = inner_dim // attn.heads
+        attention_probs = attn.get_attention_scores(attn.head_to_batch_dim(query), attn.head_to_batch_dim(key))
 
-        query = query.view(batch_size, -1, attn.heads, head_dim).transpose(1, 2)
+        if (attention_mask is None) or torch.all(attention_mask[:,:,1:] == 0) or torch.all(attention_mask[:,:,1:] == 1):
+            attn_loss_bank.append(0)
+        else:
+            token_indices = [i for i, value in enumerate(text_input_ids[0]) if value != 49406 and value != 49407]
+            reverse_attention_probs = attention_probs * (1-attention_mask)
+            reverse_score = torch.sum(reverse_attention_probs[:,:,token_indices]) / (torch.sum(1-attention_mask[:,:,1]) * attention_probs.shape[0])
 
-        key = key.view(batch_size, -1, attn.heads, head_dim).transpose(1, 2)
-        value = value.view(batch_size, -1, attn.heads, head_dim).transpose(1, 2)
+            in_attention_probs = attention_probs * attention_mask
+            in_score = torch.sum(in_attention_probs[:,:,token_indices]) / (torch.sum(attention_mask[:,:,1]) * attention_probs.shape[0])
+            attn_loss_bank.append(reverse_score - in_score)
+            
+        # whether to add attention mask to the attention score
+        attention_probs = attention_probs * attention_mask
 
-        # print("shape of query: ",query.shape)
-        # print("shape of key: ",key.shape)
-        # print("shape of value: ",value.shape)
-
-        # the output of sdp = (batch, num_heads, seq_len, head_dim)
-        # TODO: add support for attn.scale when we move to Torch 2.1
-        hidden_states = F.scaled_dot_product_attention(
-            query, key, value, attn_mask=attention_mask, dropout_p=0.0, is_causal=False
-        )
-
-        hidden_states = hidden_states.transpose(1, 2).reshape(batch_size, -1, attn.heads * head_dim)
-        hidden_states = hidden_states.to(query.dtype)
+        # print("shape of attention score: ",attention_probs.shape)
+        hidden_states = torch.bmm(attention_probs, attn.head_to_batch_dim(value))
+        hidden_states = attn.batch_to_head_dim(hidden_states)
 
         # linear proj
         hidden_states = attn.to_out[0](hidden_states)
         # dropout
         hidden_states = attn.to_out[1](hidden_states)
-
-        if input_ndim == 4:
-            hidden_states = hidden_states.transpose(-1, -2).reshape(batch_size, channel, height, width)
-
-        if attn.residual_connection:
-            hidden_states = hidden_states + residual
-
-        hidden_states = hidden_states / attn.rescale_output_factor
 
         return hidden_states
 
@@ -182,7 +167,8 @@ class PILOT_SelfAttnProcessor:
         temb = None,
         attn_mask = None,
         mask_ca = False,
-        mask_sa = False,
+        attn_loss_bank = [],
+        text_input_ids = [],
         *args,
         **cross_attention_kwargs,
     ) -> torch.FloatTensor:
@@ -204,18 +190,7 @@ class PILOT_SelfAttnProcessor:
             hidden_states.shape if encoder_hidden_states is None else encoder_hidden_states.shape
         )
 
-        if (mask_sa) and (attn_mask is not None):
-            attention_mask=rearrange(attn_mask[str(hidden_states.shape[-2])], 'h w -> (h w) ()')  # (hw * 1) fatten seq mask, 1 for fg, 0 for bg
-            
-            attention_mask = ((1- attention_mask) @ attention_mask.T) #(hw) * (hw) matrix, 1 for fg(K)-bg(Q) attention score (which needs to be set 0)
-            # self-attn mask
-            attention_mask = (1 - attention_mask).unsqueeze(0) # invert fg-bg mask, expand the size to match attn
-            # torch.float16
-            attention_mask=attention_mask.to(dtype=torch.bool)
-            attention_mask = attention_mask.unsqueeze(0)
-        else:
-            # attn_mask1=torch.ones((1, 1, norm_hidden_states.shape[-2], encoder_hidden_states.shape[-2]), dtype=torch.bool).to('cuda')
-            attention_mask = None
+        attention_mask = None
 
         # if attention_mask is not None:
         #     attention_mask = attn.prepare_attention_mask(attention_mask, sequence_length, batch_size)
@@ -329,7 +304,8 @@ class PILOT_IPAdapterAttnProcessor(torch.nn.Module):
         ip_adapter_masks = None,
         attn_mask = None,
         mask_ca = False,
-        mask_sa = False,
+        attn_loss_bank = [],
+        text_input_ids = [],
     ):
         residual = hidden_states
 
@@ -362,14 +338,18 @@ class PILOT_IPAdapterAttnProcessor(torch.nn.Module):
             hidden_states.shape if encoder_hidden_states is None else encoder_hidden_states.shape
         )
 
+        embedding_shape = encoder_hidden_states.shape[-2]
+        latent_shape = hidden_states.shape[-2]
+
         if (mask_ca) and (attn_mask is not None):
-            attention_mask=rearrange(attn_mask[str(hidden_states.shape[-2])],"h w -> () () (h w) ()").to(dtype=torch.bool)
-            embedding_shape = encoder_hidden_states.shape[-2]
-            latent_shape = hidden_states.shape[-2]
-            attention_mask = torch.cat([torch.ones((1, 1, latent_shape, 1), dtype=torch.bool).to('cuda'),  # 0th token: <bos>, leave it as-is
+            attention_mask=rearrange(attn_mask[str(hidden_states.shape[-2])],"h w -> () () (h w) ()")
+            attention_mask = torch.cat([torch.ones((1, 1, latent_shape, 1)).to('cuda'),  # 0th token: <bos>, leave it as-is
                                 attention_mask.repeat(1,1,1,embedding_shape-1)], dim=-1) # tokens only attend to fg area
+            attention_mask = attention_mask.squeeze(dim=0)
+            attention_mask = attention_mask.repeat(1,1,1)
         else:
-            attention_mask = None
+            attention_mask = torch.ones((1, latent_shape, embedding_shape)).to('cuda')
+        attention_mask = attention_mask.to(hidden_states.dtype)
 
         # if attention_mask is not None:
         #     attention_mask = attn.prepare_attention_mask(attention_mask, sequence_length, batch_size)
@@ -393,20 +373,45 @@ class PILOT_IPAdapterAttnProcessor(torch.nn.Module):
         inner_dim = key.shape[-1]
         head_dim = inner_dim // attn.heads
 
-        query = query.view(batch_size, -1, attn.heads, head_dim).transpose(1, 2)
+        # query = query.view(batch_size, -1, attn.heads, head_dim).transpose(1, 2)
 
-        key = key.view(batch_size, -1, attn.heads, head_dim).transpose(1, 2)
-        value = value.view(batch_size, -1, attn.heads, head_dim).transpose(1, 2)
+        # key = key.view(batch_size, -1, attn.heads, head_dim).transpose(1, 2)
+        # value = value.view(batch_size, -1, attn.heads, head_dim).transpose(1, 2)
 
-        # the output of sdp = (batch, num_heads, seq_len, head_dim)
-        # TODO: add support for attn.scale when we move to Torch 2.1
-        hidden_states = F.scaled_dot_product_attention(
-            query, key, value, attn_mask=attention_mask, dropout_p=0.0, is_causal=False
-        )
+        # # the output of sdp = (batch, num_heads, seq_len, head_dim)
+        # # TODO: add support for attn.scale when we move to Torch 2.1
+        # hidden_states = F.scaled_dot_product_attention(
+        #     query, key, value, attn_mask=attention_mask, dropout_p=0.0, is_causal=False
+        # )
 
-        hidden_states = hidden_states.transpose(1, 2).reshape(batch_size, -1, attn.heads * head_dim)
-        hidden_states = hidden_states.to(query.dtype)
+        # hidden_states = hidden_states.transpose(1, 2).reshape(batch_size, -1, attn.heads * head_dim)
+        # hidden_states = hidden_states.to(query.dtype)
 
+        attention_probs = attn.get_attention_scores(attn.head_to_batch_dim(query), attn.head_to_batch_dim(key))
+
+        if (attention_mask is None) or torch.all(attention_mask[:,:,1:] == 0) or torch.all(attention_mask[:,:,1:] == 1):
+            attn_loss_bank.append(0)
+        else:
+            token_indices = [i for i, value in enumerate(text_input_ids[0]) if value != 49406 and value != 49407]
+            reverse_attention_probs = attention_probs * (1-attention_mask)
+            reverse_score = torch.sum(reverse_attention_probs[:,:,token_indices]) / (torch.sum(1-attention_mask[:,:,1]) * attention_probs.shape[0])
+
+            in_attention_probs = attention_probs * attention_mask
+            in_score = torch.sum(in_attention_probs[:,:,token_indices]) / (torch.sum(attention_mask[:,:,1]) * attention_probs.shape[0])
+            attn_loss_bank.append(reverse_score - in_score)
+            
+        # whether to add attention mask to the attention score
+        attention_probs = attention_probs * attention_mask
+
+        # print("shape of attention score: ",attention_probs.shape)
+        hidden_states = torch.bmm(attention_probs, attn.head_to_batch_dim(value))
+        hidden_states = attn.batch_to_head_dim(hidden_states)
+
+        # linear proj
+        hidden_states = attn.to_out[0](hidden_states)
+        # dropout
+        hidden_states = attn.to_out[1](hidden_states)
+        
         if ip_adapter_masks is not None:
             if not isinstance(ip_adapter_masks, List):
                 # for backward compatibility, we accept `ip_adapter_mask` as a tensor of shape [num_ip_adapter, 1, height, width]
@@ -438,6 +443,7 @@ class PILOT_IPAdapterAttnProcessor(torch.nn.Module):
         else:
             ip_adapter_masks = [None] * len(self.scale)
 
+        query = query.view(batch_size, -1, attn.heads, head_dim).transpose(1, 2)
         # for ip-adapter
         for current_ip_hidden_states, scale, to_k_ip, to_v_ip, mask in zip(
             ip_hidden_states, self.scale, self.to_k_ip, self.to_v_ip, ip_adapter_masks
