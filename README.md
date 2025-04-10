@@ -55,14 +55,14 @@ We provide three types of conditions to guide the inpainting process: text, spat
 ### Text-guided
 Modify the `model_path` parameter in the config file to point to the directory where you saved your SD model, and then execute the following instruction:
 ```
-python run_example.py --config_file configs/t2i_step50.yaml
+python run_example.py --config_file configs/t2i_step100.yaml
 ```
 ![image](https://github.com/Lingzhi-Pan/PILOT/blob/main/assets/text_add.png)
 
 ### Text + Spatial Controls
 To introduce spatial controls using ControlNet or T2I-Adapter, we offer options for both models, but we recommend using ControlNet. First, download the ControlNet checkpoint, such as ControlNet conditioned on Scribble images, published by Lvmin Zhang from the following link: https://huggingface.co/lllyasviel/sd-controlnet-scribble. Then, execute the instructions below:
 ```
-python run_example.py --config_file configs/controlnet_step30.yaml
+python run_example.py --config_file configs/controlnet_step100.yaml
 ```
 You can also download other ControlNet models published by Lvmin Zhang to enable inpainting with other conditions such as canny map, segmentation map, and normal map.
 ![image](https://github.com/Lingzhi-Pan/PILOT/blob/main/assets/controlNet_results.png)
@@ -70,16 +70,9 @@ You can also download other ControlNet models published by Lvmin Zhang to enable
 ### Text + Reference Image
 Download the checkpoint of IP-Adapter from the website "https://huggingface.co/h94/IP-Adapter", and then run the following instruction:
 ```
-python run_example.py --config_file configs/ipa_step50.yaml
+python run_example.py --config_file configs/ipa_step100.yaml
 ```
 ![image](https://github.com/Lingzhi-Pan/PILOT/blob/main/assets/ip_adapter_a.png)
-
-### Text + Spatial Controls + Reference Image
-You can also use ControlNet and IP-Adapter together to achieve multi-condition controls:
-```
-python run_example.py --config_file configs/ipa_controlnet_step30.yaml
-```
-![image](https://github.com/Lingzhi-Pan/PILOT/blob/main/assets/ip_adapter_b.png)
 
 
 ### Personalized Image Inpainting
